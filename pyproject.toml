@@ -1,0 +1,14 @@
+[project]
+name = "msoe-ai-club-rockwell-automation-nvidia-hackath-isabella-ruiz-s-team-000d78909d"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+msoe-ai-club-rockwell-automation-nvidia-hackath-isabella-ruiz-s-team-000d78909d = "msoe_ai_club_rockwell_automation_nvidia_hackath_isabella_ruiz_s_team_000d78909d:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
