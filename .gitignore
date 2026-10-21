@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Model checkpoints and image data: too big for GitHub, share them another way
+runs/
+*.pt
+*.pth
+twin_data/
+splits/
+real_crops/
+real_labeled/
+cap_seal/
