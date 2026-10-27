@@ -1,7 +1,14 @@
-import { StrictMode, useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import {
+  StrictMode,
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { createRoot } from "react-dom/client";
 
-type InspectionStatus = {
+type UploadStatus = {
   kind: "success" | "error";
   message: string;
 };
@@ -23,7 +30,7 @@ function useObjectUrl(file: File | null): string | null {
   return url;
 }
 
-export async function submitInspection(file: File): Promise<unknown> {
+export async function submitImage(file: File): Promise<unknown> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -34,7 +41,7 @@ export async function submitInspection(file: File): Promise<unknown> {
   try {
     payload = JSON.parse(responseText);
   } catch {
-    throw new Error("The inspection service returned an invalid response.");
+    throw new Error("The upload service returned an invalid response.");
   }
 
   if (!response.ok) {
@@ -44,7 +51,7 @@ export async function submitInspection(file: File): Promise<unknown> {
       "message" in payload &&
       typeof payload.message === "string"
         ? payload.message
-        : `Inspection failed with status ${response.status}.`;
+        : `Upload failed with status ${response.status}.`;
     throw new Error(message);
   }
 
@@ -83,15 +90,6 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
     );
   }
 
-  if (name === "video") {
-    return (
-      <svg {...shared}>
-        <rect x="3" y="5" width="13" height="14" rx="2" />
-        <path d="m16 10 5-3v10l-5-3z" />
-      </svg>
-    );
-  }
-
   if (name === "upload") {
     return (
       <svg {...shared}>
@@ -125,82 +123,100 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
 }
 
 function FileCard({
-  kind,
   file,
   previewUrl,
   onSelect,
+  onDropFile,
   onRemove,
+  isSubmitting,
 }: {
-  kind: "image" | "video";
   file: File | null;
   previewUrl: string | null;
   onSelect: (event: ChangeEvent<HTMLInputElement>) => void;
+  onDropFile: (file: File) => void;
   onRemove: () => void;
+  isSubmitting: boolean;
 }) {
-  const isImage = kind === "image";
-  const title = isImage ? "Image sample" : "Video sample";
-  const accept = isImage ? "image/*" : "video/*";
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const droppedFile = event.dataTransfer.files[0];
+    if (droppedFile) onDropFile(droppedFile);
+  };
 
   return (
     <section className="upload-card">
       <div className="card-heading">
-        <div className={`card-icon ${isImage ? "image-icon" : "video-icon"}`}>
-          <Icon name={kind} />
+        <div className="card-icon image-icon">
+          <Icon name="image" />
         </div>
         <div>
-          <h2>{title}</h2>
-          <p>{isImage ? "Single frame analysis" : "Optional process footage"}</p>
+          <h2>Image sample</h2>
+          <p>Still frame upload</p>
         </div>
-        <span className="step-label">{isImage ? "REQUIRED" : "OPTIONAL"}</span>
+        <span className="step-label">REQUIRED</span>
       </div>
 
       <input
-        accept={accept}
+        accept="image/*"
+        aria-label="Choose an image to upload"
         className="visually-hidden"
-        id={`${kind}-file`}
+        id="image-file"
         onChange={onSelect}
         type="file"
+        disabled={isSubmitting}
       />
 
       {file && previewUrl ? (
         <div className="preview-area">
-          {isImage ? (
-            <img src={previewUrl} alt={`Preview of ${file.name}`} />
-          ) : (
-            <video src={previewUrl} controls aria-label={`Preview of ${file.name}`} />
-          )}
+          <img src={previewUrl} alt={`Preview of ${file.name}`} />
           <div className="file-details">
             <div className="file-name-wrap">
               <span className="file-check"><Icon name="check" size={14} /></span>
               <div>
                 <strong title={file.name}>{file.name}</strong>
-                <span>{(file.size / (1024 * 1024)).toFixed(2)} MB · Ready to inspect</span>
+                <span>{(file.size / (1024 * 1024)).toFixed(2)} MB · Ready to upload</span>
               </div>
             </div>
             <button
               className="icon-button"
               onClick={onRemove}
               type="button"
-              aria-label={`Remove ${kind} file`}
+              aria-label="Remove image file"
               title="Remove file"
+              disabled={isSubmitting}
             >
               <Icon name="close" size={16} />
             </button>
           </div>
         </div>
       ) : (
-        <label className="dropzone" htmlFor={`${kind}-file`}>
+        <label
+          className={`dropzone${isDragging ? " dragging" : ""}`}
+          htmlFor="image-file"
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setIsDragging(false);
+            }
+          }}
+          onDrop={handleDrop}
+        >
           <span className="upload-symbol"><Icon name="upload" size={22} /></span>
-          <strong>{isImage ? "Choose an image" : "Choose a video"}</strong>
+          <strong>Choose an image</strong>
           <span>or <span className="browse-link">browse files</span></span>
-          <span className="file-hint">
-            {isImage ? "JPG, PNG, WEBP · Up to 20 MB" : "MP4, MOV, WEBM · Up to 100 MB"}
-          </span>
+          <span className="file-hint">Image files · Up to 20 MB</span>
         </label>
       )}
 
-      <label className="change-file" htmlFor={`${kind}-file`}>
-        {file ? "Choose a different file" : `Select ${isImage ? "image" : "video"}`}
+      <label className="change-file" htmlFor="image-file">
+        {file ? "Choose a different image" : "Select image"}
         <span aria-hidden="true">↗</span>
       </label>
     </section>
@@ -209,55 +225,45 @@ function FileCard({
 
 function Dashboard() {
   const [image, setImage] = useState<File | null>(null);
-  const [video, setVideo] = useState<File | null>(null);
-  const [status, setStatus] = useState<InspectionStatus | null>(null);
+  const [status, setStatus] = useState<UploadStatus | null>(null);
   const [result, setResult] = useState<unknown>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const imageUrl = useObjectUrl(image);
-  const videoUrl = useObjectUrl(video);
 
-  const selectFile = (
-    event: ChangeEvent<HTMLInputElement>,
-    kind: "image" | "video",
-  ) => {
-    const file = event.currentTarget.files?.[0] ?? null;
-    event.currentTarget.value = "";
-
-    if (!file) return;
-
-    const isImage = kind === "image";
-    const validType = isImage ? file.type.startsWith("image/") : file.type.startsWith("video/");
-    const maxSize = isImage ? 20 * 1024 * 1024 : 100 * 1024 * 1024;
-    const label = isImage ? "image" : "video";
-
+  const setSelectedImage = (file: File) => {
     setResult(null);
-    if (!validType || file.size > maxSize) {
-      if (isImage) setImage(null);
-      else setVideo(null);
+    if (!file.type.startsWith("image/") || file.size === 0 || file.size > 20 * 1024 * 1024) {
+      setImage(null);
       setStatus({
         kind: "error",
-        message: !validType
-          ? `Please choose a valid ${label} file.`
-          : `The ${label} file must be smaller than ${isImage ? "20" : "100"} MB.`,
+        message: !file.type.startsWith("image/")
+          ? "Please choose a valid image file."
+          : file.size === 0
+            ? "The image file is empty."
+            : "The image must be 20 MB or smaller.",
       });
       return;
     }
 
-    if (isImage) setImage(file);
-    else setVideo(file);
+    setImage(file);
     setStatus(null);
   };
 
-  const removeFile = (kind: "image" | "video") => {
-    if (kind === "image") setImage(null);
-    else setVideo(null);
+  const selectFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+    if (file) setSelectedImage(file);
+  };
+
+  const removeImage = () => {
+    setImage(null);
     setResult(null);
     setStatus(null);
   };
 
-  const runInspection = async () => {
+  const sendImage = async () => {
     if (!image) {
-      setStatus({ kind: "error", message: "Select an image sample before running inspection." });
+      setStatus({ kind: "error", message: "Choose an image before sending it." });
       return;
     }
 
@@ -265,13 +271,13 @@ function Dashboard() {
     setStatus(null);
     setResult(null);
     try {
-      const response = await submitInspection(image);
+      const response = await submitImage(image);
       setResult(response);
-      setStatus({ kind: "success", message: "Upload received. This demo does not run an AI inspection." });
+      setStatus({ kind: "success", message: "Image received. No AI inspection model is connected." });
     } catch (error) {
       setStatus({
         kind: "error",
-        message: error instanceof Error ? error.message : "Inspection failed unexpectedly.",
+        message: error instanceof Error ? error.message : "Image upload failed unexpectedly.",
       });
     } finally {
       setIsSubmitting(false);
@@ -287,90 +293,70 @@ function Dashboard() {
             <span className="brand-mark"><Icon name="vial" size={22} /></span>
             <span>Vial<span className="brand-light">Sight</span></span>
             <span className="brand-divider" />
-            <span className="brand-caption">QUALITY INTELLIGENCE</span>
+            <span className="brand-caption">IMAGE UPLOAD DEMO</span>
           </a>
-          <div className="system-status"><span className="online-dot" /> Demo workspace</div>
+          <div className="system-status"><span className="online-dot" /> Prototype · no model</div>
         </header>
 
         <main>
           <section className="intro">
             <div>
-              <div className="eyebrow"><span /> INSPECTION WORKSPACE <span className="eyebrow-line" /></div>
-              <h1>See the details.<br /><span>Trust the quality.</span></h1>
+              <div className="eyebrow"><span /> IMAGE UPLOAD PROTOTYPE <span className="eyebrow-line" /></div>
+              <h1>Make every vial<br /><span>easier to inspect.</span></h1>
               <p className="intro-copy">
-                Analyze vial samples with precision. Upload an image to start your inspection.
+                Upload a still image to test the API flow. Image classification is not connected yet.
               </p>
             </div>
-            <div className="session-chip"><span className="session-dot" /> DEMO WORKSPACE <span className="chip-divider" /> READY FOR UPLOAD</div>
+            <div className="session-chip"><span className="session-dot" /> DEMO MODE <span className="chip-divider" /> NO AI PREDICTIONS</div>
           </section>
 
-          <section className="metrics" aria-label="Inspection summary">
-            <div className="metric">
-              <span className="metric-label">INSPECTIONS TODAY</span>
-              <strong>—</strong>
-              <span className="metric-note">No live data</span>
+          <section className="demo-notice" aria-label="Demo limitations">
+            <span className="notice-icon"><Icon name="alert" size={18} /></span>
+            <div>
+              <strong>Prototype mode</strong>
+              <p>The server confirms that an image was received. It does not run a model or return inspection predictions.</p>
             </div>
-            <div className="metric">
-              <span className="metric-label">PASS RATE</span>
-              <strong>—</strong>
-              <span className="metric-note">No live data</span>
-            </div>
-            <div className="metric">
-              <span className="metric-label">AVG. PROCESSING</span>
-              <strong>—</strong>
-              <span className="metric-note">No live data</span>
-            </div>
-            <div className="metric metric-last">
-              <span className="metric-label">MODEL STATUS</span>
-              <strong className="model-ready">—</strong>
-              <span className="metric-note">No AI model connected</span>
-            </div>
+            <span className="notice-state">UPLOAD ONLY</span>
           </section>
 
           <section className="workspace-heading">
             <div>
-              <h2>New inspection</h2>
-              <p>Provide a sample to run a quality check.</p>
+              <h2>Test image upload</h2>
+              <p>Choose an image or drop it into the upload area.</p>
             </div>
             <span className="required-note"><span>*</span> Required field</span>
           </section>
 
           <div className="upload-grid">
             <FileCard
-              kind="image"
               file={image}
               previewUrl={imageUrl}
-              onSelect={(event) => selectFile(event, "image")}
-              onRemove={() => removeFile("image")}
-            />
-            <FileCard
-              kind="video"
-              file={video}
-              previewUrl={videoUrl}
-              onSelect={(event) => selectFile(event, "video")}
-              onRemove={() => removeFile("video")}
+              onSelect={selectFile}
+              onDropFile={setSelectedImage}
+              onRemove={removeImage}
+              isSubmitting={isSubmitting}
             />
           </div>
 
           <section className="action-row">
-            <div className="privacy-note"><span className="privacy-icon">◈</span> Your samples are processed securely and never stored.</div>
-            <button className="run-button" disabled={isSubmitting} onClick={runInspection} type="button">
-              {isSubmitting ? "Inspecting sample…" : <>Run inspection <span>→</span></>}
+            <div className="privacy-note"><span className="privacy-icon">◈</span> The demo acknowledges the upload; it does not retain or analyze the image.</div>
+            <button className="run-button" disabled={isSubmitting} onClick={sendImage} type="button">
+              {isSubmitting ? "Sending image…" : <>Send image <span>→</span></>}
             </button>
           </section>
 
-          <section className="results-panel">
+          <section className="results-panel" aria-label="Upload response" aria-live="polite">
             <div className="results-head">
-              <div className="results-title"><span className="result-icon"><Icon name="check" size={16} /></span><div><h2>Inspection results</h2><p>Analysis output will appear here</p></div></div>
+              <div className="results-title"><span className="result-icon"><Icon name="check" size={16} /></span><div><h2>Upload response</h2><p>Receipt from the demo API · not an AI prediction</p></div></div>
               <span className="output-label">OUTPUT</span>
             </div>
             {status ? (
-              <div className={`status-message ${status.kind}`} role="status">
+              <div className={`status-message ${status.kind}`} role={status.kind === "error" ? "alert" : "status"}>
                 <span className="status-indicator"><Icon name={status.kind === "success" ? "check" : "alert"} size={16} /></span>
                 {status.message}
               </div>
             ) : (
-              <div className="empty-result"><span className="empty-result-mark">{"{ }"}</span>Waiting for an inspection to run<span className="cursor">_</span></div>
+              <div className="empty-result"><span className="empty-result-mark">{"{ }"}</span>Waiting for an image upload<span className="cursor">_</span></div>
             )}
             {result !== null && <pre className="json-result">{JSON.stringify(result, null, 2)}</pre>}
           </section>
@@ -382,6 +368,15 @@ function Dashboard() {
 }
 
 const styles = `
+  .demo-notice{display:flex;align-items:center;gap:14px;padding:17px 19px;margin-bottom:38px;border:1px solid rgba(239,180,102,.22);border-radius:7px;background:linear-gradient(105deg,rgba(82,58,31,.2),rgba(17,26,28,.8))}
+  .notice-icon{width:32px;height:32px;display:grid;place-items:center;flex:none;border:1px solid rgba(239,180,102,.2);border-radius:7px;color:#e8bc78;background:rgba(239,180,102,.08)}
+  .demo-notice strong{display:block;color:#e9dfce;font-size:11px;font-weight:600}
+  .demo-notice p{margin-top:4px;color:#a79c89;font-size:10px;line-height:1.55}
+  .notice-state{margin-left:auto;padding:5px 7px;border:1px solid rgba(239,180,102,.2);border-radius:3px;color:#d9b980;font:8px 'DM Mono',monospace;letter-spacing:.08em;white-space:nowrap}
+  .app-shell .upload-grid{grid-template-columns:minmax(0,1fr)}
+  .dropzone.dragging,.dropzone.dragging:hover{border-color:#5be0c0;background:rgba(41,104,89,.16);box-shadow:inset 0 0 0 1px rgba(91,224,192,.18)}
+  button:focus-visible,.dropzone:focus-visible,.change-file:focus-visible{outline:2px solid #5be0c0;outline-offset:3px}
+  .icon-button:disabled{opacity:.5;cursor:wait}
   :root{font-family:'DM Sans',sans-serif;color:#e6edee;background:#0a1012;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-optical-sizing:auto;font-weight:400;--muted:#778588;--line:#202b2d;--teal:#5be0c0}
   *{box-sizing:border-box}
   body{margin:0;min-width:320px;min-height:100vh;background:radial-gradient(ellipse at 78% 8%,rgba(28,76,69,.18),transparent 38%),#0a1012}
