@@ -1,5 +1,6 @@
 """Class names, folder scanning and crop lists. No PyTorch needed."""
 import csv
+import ntpath
 import os
 import re
 import sys
@@ -43,6 +44,24 @@ def scan_folder(root):
     return items
 
 
+def _resolve(path, label, base):
+    """Find a listed crop even if the list was made on another computer.
+
+    Lists store paths relative to the CSV, with forward slashes. Older lists
+    (or ones moved from Windows to Linux) may hold a full path that doesn't
+    exist here; then look for the same file name in the usual label folders
+    next to the CSV: ../real_labeled/<label>/ or ./<label>/.
+    """
+    p = path.replace("\\", "/")
+    candidates = [p if os.path.isabs(p) else os.path.join(base, p)]
+    name = ntpath.basename(path)
+    candidates += [os.path.join(base, "..", "real_labeled", label, name), os.path.join(base, label, name)]
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.normpath(c)
+    return os.path.normpath(candidates[0])   # reported as missing when opened
+
+
 def read_list(csv_path):
     """Read a crop list CSV with columns path,label."""
     items = []
@@ -52,19 +71,22 @@ def read_list(csv_path):
             label = row["label"].strip()
             if label not in CLASS_TO_IDX:
                 sys.exit(f"Unknown label '{label}' in {csv_path}")
-            path = row["path"]
-            if not os.path.isabs(path):
-                path = os.path.join(base, path)
-            items.append((path, CLASS_TO_IDX[label]))
+            items.append((_resolve(row["path"], label, base), CLASS_TO_IDX[label]))
+    missing = [p for p, _ in items if not os.path.exists(p)]
+    if missing:
+        sys.exit(f"{len(missing)} crops listed in {csv_path} were not found, e.g. {missing[0]}\n"
+                 f"Copy the real_labeled folder next to the splits folder (same parent) and retry.")
     return items
 
 
 def write_list(csv_path, items):
+    """Paths are stored relative to the CSV, with forward slashes, so the list works on any computer."""
+    base = os.path.dirname(os.path.abspath(csv_path))
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["path", "label"])
         for path, idx in items:
-            w.writerow([os.path.abspath(path), CLASSES[idx]])
+            w.writerow([os.path.relpath(os.path.abspath(path), base).replace(os.sep, "/"), CLASSES[idx]])
 
 
 def load_items(source):
