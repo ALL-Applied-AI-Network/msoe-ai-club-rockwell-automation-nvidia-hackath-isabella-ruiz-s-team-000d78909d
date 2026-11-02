@@ -27,7 +27,9 @@ def train_transform(size):
     return transforms.Compose([
         transforms.Resize((size, size)),
         transforms.RandomAffine(degrees=0, translate=(0.04, 0.04)),
-        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.1),
+        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.25, hue=0.03),
+        # Real camera crops are softer than clean renders (lens, motion, JPEG).
+        transforms.RandomApply([transforms.GaussianBlur(kernel_size=5, sigma=(0.3, 1.2))], p=0.5),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])

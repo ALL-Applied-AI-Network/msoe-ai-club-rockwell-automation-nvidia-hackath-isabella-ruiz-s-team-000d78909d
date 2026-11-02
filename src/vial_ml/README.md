@@ -113,3 +113,18 @@ Augmentation (in `model.py`) is deliberately mild: small shifts so the label nev
 | `train.py` | training loop and checkpoint selection | yes |
 | `evaluate.py` | report, metrics, predictions, gallery | yes |
 | `gradcam.py` | heatmaps for the defect score | yes |
+
+## Live testing with predict.py
+
+`predict.py` takes whole 640x480 station photos, crops the 30 G positions, and marks each one: green = pass, grey = empty, red box = defect flagged (defect score at or above the checkpoint's threshold).
+
+```bash
+python predict.py --model runs/mixed_v1/best.pt --image photo.png --show      # one photo
+python predict.py --model runs/mixed_v1/best.pt --folder station_oct30       # a folder
+python predict.py --model runs/mixed_v1/best.pt --watch incoming --show      # live: new files as they land
+python predict.py --model runs/mixed_v1/best.pt --camera 0 --show            # live: a camera on this computer
+```
+
+Results go to `live_out/` (annotated image + JSON per photo, and `results.csv`). Frames with the robot arm over the fixture are skipped. The backend can `from predict import Inspector` and call `Inspector("best.pt").inspect(bgr_image)`.
+
+Real station photos are used only to compare, calibrate and test, never to train (the lab rule for Dataset 1).

@@ -53,7 +53,10 @@ def mean_loss(model, items, size, device, criterion, workers):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--train", required=True)
+    ap.add_argument("--train", required=True, action="append",
+                    help="twin training set (folder or CSV); repeat to combine several")
+    ap.add_argument("--init", default=None,
+                    help="start from this checkpoint (e.g. runs/twin_v4/best.pt) instead of ImageNet weights")
     ap.add_argument("--val", default=None, help="twin validation set")
     ap.add_argument("--real-val", default=None, help="real validation list from split_real.py (never trained on)")
     ap.add_argument("--out", required=True)
@@ -72,7 +75,7 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     device = pick_device()
 
-    train_items = load_items(args.train)
+    train_items = [it for src in args.train for it in load_items(src)]
     if args.val:
         val_items = load_items(args.val)
     else:
@@ -92,7 +95,14 @@ def main():
 
     loader = DataLoader(CropDataset(train_items, train_transform(args.img_size)), batch_size=args.batch_size,
                         shuffle=True, num_workers=args.workers, drop_last=len(train_items) > args.batch_size)
-    model = build_model(pretrained=not args.no_pretrained).to(device)
+    model = build_model(pretrained=not args.no_pretrained and not args.init)
+    if args.init:
+        ckpt = torch.load(args.init, map_location="cpu", weights_only=False)
+        if ckpt.get("classes") != CLASSES:
+            raise SystemExit(f"{args.init} has classes {ckpt.get('classes')}, expected {CLASSES}")
+        model.load_state_dict(ckpt["model"])
+        print(f"starting from {args.init} (epoch {ckpt.get('epoch')})")
+    model = model.to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights(train_items, args.defect_weight).to(device))
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)

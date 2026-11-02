@@ -12,3 +12,6 @@ splits/
 real_crops/
 real_labeled/
 cap_seal/
+
+# Inspection app output (photos and results from runs)
+app_runs/

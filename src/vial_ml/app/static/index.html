@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vial Inspection</title>
+<style>
+:root {
+  --bg: #f3f4f1; --panel: #ffffff; --ink: #1c1f1d; --muted: #66706a; --line: #dfe2dc;
+  --pass: #2f9e55; --defect: #d6342c; --missed: #e07a10; --empty: #9aa29d; --unexpected: #2f6fd6;
+  --accent: #1c1f1d; --chip: #eef0eb; --shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121413; --panel: #1b1e1c; --ink: #e8ebe7; --muted: #9aa49d; --line: #2c312e;
+          --chip: #252a27; --accent: #e8ebe7; --empty: #6d756f; --shadow: none; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+a.btn { text-decoration: none; display: inline-block; color: var(--ink); }
+select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+td, .verdict .meta { overflow-wrap: anywhere; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, select, input { font: inherit; color: inherit; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line);
+         background: var(--panel); flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; letter-spacing: .01em; }
+header .sub { color: var(--muted); }
+.badge { padding: 3px 9px; border-radius: 999px; background: var(--chip); font-size: 12px; color: var(--muted); }
+.badge.demo { background: #ffe9b8; color: #6b4a00; font-weight: 600; }
+.tabs { margin-left: auto; display: flex; background: var(--chip); border-radius: 8px; padding: 3px; }
+.tabs button { border: 0; background: none; padding: 5px 14px; border-radius: 6px; cursor: pointer; color: var(--muted); }
+.tabs button.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
+main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 16px; padding: 16px 20px;
+       max-width: 1500px; margin: 0 auto; align-items: start;
+       grid-template-areas: "stage side" "hist side"; }
+#stage-card { grid-area: stage; } #side { grid-area: side; } #hist-card { grid-area: hist; }
+@media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px;
+       grid-template-areas: "stage" "side" "hist"; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); }
+.card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* image stage */
+.stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0d0f0e; border-radius: 8px; overflow: hidden; }
+.stage img, .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #8d958f; text-align: center; padding: 20px; }
+.stage.drag { outline: 3px dashed var(--unexpected); outline-offset: -6px; }
+svg .box { fill: transparent; stroke-width: 1.4; cursor: pointer; }
+svg .box.sel { stroke-width: 3; }
+svg .tag { font: 600 9px ui-sans-serif, system-ui, sans-serif; paint-order: stroke; stroke: rgba(0,0,0,.7); stroke-width: 2.5px; }
+.controls { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--panel); padding: 7px 14px; border-radius: 7px; cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+.hint { color: var(--muted); font-size: 13px; }
+.livedot { width: 9px; height: 9px; border-radius: 50%; background: var(--empty); display: inline-block; }
+.livedot.on { background: var(--pass); animation: pulse 1.4s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+
+/* verdict */
+.verdict { display: flex; align-items: center; gap: 14px; }
+.verdict .word { font-size: 34px; font-weight: 800; letter-spacing: .02em; line-height: 1; }
+.verdict .meta { color: var(--muted); font-size: 13px; }
+.v-PASS .word { color: var(--pass); } .v-REJECT .word { color: var(--defect); }
+.v-CHECK .word, .v-SKIPPED .word { color: var(--missed); }
+.bar { height: 6px; border-radius: 3px; margin: 12px 0 10px; background: var(--chip); }
+.v-PASS .bar { background: var(--pass); } .v-REJECT .bar { background: var(--defect); }
+.v-CHECK .bar, .v-SKIPPED .bar { background: var(--missed); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--chip); font-size: 13px; }
+.dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.s-pass { color: var(--pass); } .s-defect { color: var(--defect); } .s-missed { color: var(--missed); }
+.s-empty { color: var(--empty); } .s-unexpected { color: var(--unexpected); }
+
+/* lists */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+td { padding: 6px; border-bottom: 1px solid var(--line); }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--chip); }
+tr.cur td { background: var(--chip); }
+.mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.none { color: var(--muted); padding: 6px 0; }
+
+/* fixture map */
+.map { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; max-width: 330px; margin: 0 auto; }
+.cell { aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; font-weight: 600;
+        border: 2px solid var(--line); cursor: pointer; background: var(--chip); color: var(--muted); }
+.cell.pass { border-color: var(--pass); color: var(--pass); }
+.cell.defect { border-color: var(--defect); background: var(--defect); color: #fff; }
+.cell.missed { border-color: var(--missed); border-style: dashed; color: var(--missed); }
+.cell.unexpected { border-color: var(--unexpected); color: var(--unexpected); }
+.cell.empty { border-style: dotted; }
+.cell.sel { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* detail */
+.probs { display: grid; grid-template-columns: 96px 1fr 52px; gap: 5px 8px; align-items: center; font-size: 13px; }
+.probs .track { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+.probs .fill { height: 100%; background: var(--muted); }
+.probs .fill.d { background: var(--defect); } .probs .fill.p { background: var(--pass); }
+
+.row { display: flex; align-items: center; gap: 10px; margin: 6px 0; flex-wrap: wrap; }
+.row label { min-width: 92px; color: var(--muted); }
+input[type=range] { flex: 1; min-width: 120px; accent-color: var(--ink); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.warn { color: var(--missed); font-size: 13px; margin-top: 6px; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.events { max-height: 240px; overflow-y: auto; margin-top: 10px; font-size: 13px; border-top: 1px solid var(--line); }
+.ev { display: grid; grid-template-columns: 62px 40px 1fr; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.ev .t { color: var(--muted); } .ev.defect .x { color: var(--defect); } .ev.ok .x { color: var(--pass); }
+.ev.warn .x, .ev.signal .x { color: var(--missed); } .ev.info .x, .ev.start .x { color: var(--muted); }
+#order-card.on { border-color: var(--ink); }
+.v-PROGRESS .word { color: var(--ink); font-size: 26px; } .v-PROGRESS .bar { background: var(--ink); }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel);
+         padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vial Inspection</h1>
+  <span class="sub">Final inspection · good fixture G01–G30</span>
+  <span id="model" class="badge">loading…</span>
+  <div class="tabs" role="tablist">
+    <button data-tab="upload" class="on">Upload</button>
+    <button data-tab="samples">Samples</button>
+    <button data-tab="live">Live</button>
+  </div>
+</header>
+
+<main>
+    <section class="card" id="stage-card">
+      <div id="stage" class="stage">
+        <img id="photo" alt="" hidden>
+        <svg id="overlay" viewBox="0 0 640 480" preserveAspectRatio="none"></svg>
+        <div id="placeholder" class="empty">Drop a 640×480 station photo here, or use the buttons below.</div>
+      </div>
+      <div class="controls" id="ctl-upload">
+        <label class="btn primary">Choose photos<input id="file" type="file" accept="image/*" multiple hidden></label>
+        <span class="hint">or drag photos onto the image area. Several photos are inspected in order.</span>
+      </div>
+      <div class="controls" id="ctl-samples" hidden>
+        <button class="btn" id="prev">← Previous</button>
+        <button class="btn primary" id="next">Next →</button>
+        <span class="hint" id="sample-pos"></span>
+        <span class="hint">Go to #</span><input id="goto" type="number" min="1" style="width:80px;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+        <button class="btn" id="goto-btn">Go</button>
+        <button class="btn primary" id="play">▶ Play</button>
+      </div>
+      <div class="controls" id="ctl-live" hidden>
+        <span class="livedot" id="livedot"></span>
+        <span id="live-text" class="hint"></span>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--pass)"></span> pass</span>
+        <span><span class="dot" style="background:var(--defect)"></span> defect</span>
+        <span><span class="dot" style="background:var(--missed)"></span> missed placement</span>
+        <span><span class="dot" style="background:var(--empty)"></span> empty (outside fill)</span>
+        <span><span class="dot" style="background:var(--unexpected)"></span> vial past fill count</span>
+      </div>
+    </section>
+
+    <section class="card" id="hist-card">
+      <h2>History</h2>
+      <div style="display:flex;justify-content:flex-end;margin:-28px 0 8px"><a class="btn" href="/api/history.csv">Download CSV</a></div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Time</th><th>Photo</th><th>Verdict</th><th>Defects</th><th>Missed</th><th>ms</th></tr></thead>
+        <tbody id="history"><tr><td colspan="6" class="none">No inspections yet.</td></tr></tbody>
+      </table></div>
+    </section>
+
+  <div class="stack" id="side">
+    <section class="card" id="order-card">
+      <h2>Order tracking · placement by placement</h2>
+      <div id="order-status" class="hint">Not tracking. Show a photo of the <b>empty tray</b>, then press Start order. Every later photo is compared with it, hole by hole.</div>
+      <div class="controls">
+        <button class="btn primary" id="o-start">Start order (this photo = empty tray)</button>
+        <button class="btn" id="o-placed" hidden title="Use when the robot reports a placement; if nothing appears it is a missed pick">Robot placed a vial</button>
+        <button class="btn" id="o-complete" hidden>Order complete</button>
+        <button class="btn" id="o-stop" hidden>Stop</button>
+        <a class="btn primary" id="o-report" href="/api/order/report" target="_blank" rel="noopener" hidden>Order record</a>
+      </div>
+      <div class="events" id="events" hidden></div>
+    </section>
+
+    <section class="card" id="verdict-card">
+      <div class="verdict"><div class="word" id="verdict">—</div><div class="meta" id="verdict-meta">Waiting for a photo</div></div>
+      <div class="bar"></div>
+      <div class="chips" id="counts"></div>
+      <div id="reason" class="warn" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>Tray findings <span style="text-transform:none;letter-spacing:0;font-weight:400">· organizers' rules (rules.py)</span></h2>
+      <dl class="kv" id="findings"><dt class="none">—</dt><dd></dd></dl>
+    </section>
+
+    <section class="card">
+      <h2>Flagged positions</h2>
+      <table><thead><tr><th>Pos</th><th>Problem</th><th>Defect score</th></tr></thead>
+        <tbody id="flagged"><tr><td colspan="3" class="none">—</td></tr></tbody></table>
+    </section>
+
+    <section class="card">
+      <h2>Fixture map <span style="text-transform:none;letter-spacing:0;font-weight:400">· as seen by the camera, filled from G01</span></h2>
+      <div class="map" id="map"></div>
+    </section>
+
+    <section class="card">
+      <h2 id="detail-title">Position detail</h2>
+      <div id="detail" class="none">Click a position on the photo or the map.</div>
+    </section>
+
+    <section class="card">
+      <h2>Decision settings</h2>
+      <div class="row"><label for="thr">Threshold</label>
+        <input type="range" id="thr" min="0" max="1" step="0.001">
+        <span class="mono" id="thr-val"></span>
+        <button class="btn" id="thr-reset" title="Use the threshold chosen on the real validation set">Reset</button></div>
+      <div class="hint" style="margin:-2px 0 8px">A position is flagged when P(missing)+P(crooked)+P(damaged) ≥ threshold. Lower = catch more, more false alarms.</div>
+      <div class="row"><label for="fill">Fill count</label>
+        <select id="fill"></select>
+        <span class="hint" id="fill-note"></span></div>
+      <div class="hint">Vials are placed G01, G02, … in order. An empty hole inside the fill count is a missed placement.</div>
+    </section>
+
+    <section class="card">
+      <h2>Image checks</h2>
+      <dl class="kv" id="quality"><dt>—</dt><dd></dd></dl>
+      <div id="qwarn"></div>
+      <div class="controls"><a class="btn" id="dl-annot" hidden>Download marked-up photo</a></div>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const STATUS_TEXT = { pass: "pass", defect: "defect", empty: "empty", missed: "missed placement", unexpected: "vial past fill count" };
+const LABEL_TEXT = { pass: "pass", missing_cap: "missing cap", crooked_cap: "crooked cap", damaged_vial: "damaged vial", no_vial: "no vial" };
+const COLOUR = { pass: "var(--pass)", defect: "var(--defect)", missed: "var(--missed)", empty: "var(--empty)", unexpected: "var(--unexpected)" };
+let raw = null, cfg = null, current = null, selected = null, tab = "upload", sampleIndex = -1, liveTimer = null, lastLiveId = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || r.statusText);
+  return body;
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 3000); }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+async function init() {
+  cfg = await api("/api/config");
+  const m = $("model");
+  m.textContent = cfg.demo ? "DEMO MODE — not the trained model" : "Model: " + cfg.model;
+  m.classList.toggle("demo", cfg.demo);
+  $("thr").value = cfg.settings.threshold;
+  $("thr-val").textContent = (+cfg.settings.threshold).toFixed(3);
+  const fill = $("fill");
+  fill.innerHTML = '<option value="auto">Auto (from photo)</option>' +
+    Array.from({ length: 31 }, (_, i) => `<option value="${i}">${i}</option>`).join("");
+  fill.value = cfg.settings.fill_count == null ? "auto" : cfg.settings.fill_count;
+  drawMap(null);
+  refreshHistory();
+}
+
+/* ---------- order view ---------- */
+const ORDER_TEXT = { check: "cap present, model unsure: check by eye", ok: "placed OK", pending: "waiting", open: "open mouth (missing cap)", flagged: "flagged by model",
+  missed: "skipped / missed pick", missing: "missing at completion", disturbed: "changed after inspection", removed: "vial gone" };
+const ORDER_CSS = { check: "unexpected", ok: "pass", pending: "empty", open: "defect", flagged: "defect", disturbed: "defect", removed: "defect",
+  missed: "missed", missing: "missed" };
+let order = null;   // latest order summary
+
+function orderView(r, o) {
+  const model = {};
+  (r.positions || []).forEach(p => model[p.position] = p);
+  const positions = o.positions.map(p => ({
+    position: p.position, status: ORDER_CSS[p.state], state: p.state, text: ORDER_TEXT[p.state],
+    label: p.label || (p.state === "pending" ? "no_vial" : "pass"),
+    defect_score: p.cap_defect_score ?? null, change: p.change ?? null,
+    probs: (model[p.position] || {}).probs || null, order: p,
+  }));
+  const n = k => o.positions.filter(p => p.state === k).length;
+  const bad = ["open", "flagged", "disturbed", "removed", "missed", "missing"].reduce((a, k) => a + n(k), 0);
+  return { ...r, positions, verdict: o.verdict, isOrder: true,
+    crop_centres: cfg.positions.map(p => [p.x, p.y]),
+    orderCounts: { ok: n("ok"), bad, check: n("check"), pending: n("pending") } };
+}
+
+function drawOrderPanel(o) {
+  const on = o && o.active;
+  $("order-card").classList.toggle("on", !!on);
+  ["o-placed", "o-complete", "o-stop", "o-report"].forEach(id => $(id).hidden = !on);
+  $("o-start").textContent = on ? "Restart with this photo" : "Start order (this photo = empty tray)";
+  $("events").hidden = !on;
+  if (!on) { $("order-status").innerHTML = 'Not tracking. Show a photo of the <b>empty tray</b>, then press Start order. Every later photo is compared with it, hole by hole.'; return; }
+  $("order-status").innerHTML = `<b>${o.verdict}</b> · ${o.filled} of 30 placed · next expected <b>${o.next || "—"}</b>` +
+    (o.awaiting_placement ? ` · waiting to see G${String(o.awaiting_placement).padStart(2, "0")}` : "") +
+    (o.cycle && o.cycle.median_s ? ` · ${Math.round(o.cycle.median_s)} s per vial (median)` +
+      (o.cycle.slow && o.cycle.slow.length ? `, slow: ${o.cycle.slow.join(" ")}` : "") : "") +
+    `<br><span class="hint">Reference: ${esc(o.reference)} · ${o.frames} photos compared` +
+    (o.unsettled && o.unsettled.length ? ` · still moving: ${o.unsettled.length} holes (arm or vial settling), checked on the next photo` : "") + "</span>";
+  $("events").innerHTML = o.events.slice().reverse().map(e => `<div class="ev ${e.kind}"><span class="t mono">${e.t}</span>
+      <b>${e.position || ""}</b><span class="x">${esc(e.text)}</span></div>`).join("");
+}
+
+async function orderAction(path, body) {
+  try {
+    order = await api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    if (current) show({ ...current, order: order.active ? order : null }, true);
+    else drawOrderPanel(order);
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- rendering ---------- */
+function show(r, keepRaw) {
+  if (!keepRaw) raw = r;
+  if (r.order !== undefined) order = r.order;
+  drawOrderPanel(order);
+  drawFindings(order && order.active && order.findings ? order.findings : r.findings);
+  if (order && order.active && r.order) r = orderView(r, r.order);
+  current = r;
+  $("placeholder").hidden = true;
+  const img = $("photo");
+  img.hidden = false;
+  img.src = r.image_url;
+  const card = $("verdict-card");
+  card.className = "card v-" + r.verdict;
+  $("verdict").textContent = r.verdict;
+  $("verdict-meta").innerHTML = `${esc(r.name)}<br>${esc(r.time.replace("T", " "))} · ${Math.round(r.seconds * 1000)} ms`;
+  const c = r.counts || {};
+  if (r.isOrder) {
+    $("verdict-meta").innerHTML = `Order · ${esc(r.name)}<br>${esc(r.time.replace("T", " "))} · ${Math.round(r.seconds * 1000)} ms`;
+    card.className = "card v-" + (r.verdict === "IN PROGRESS" ? "PROGRESS" : r.verdict);
+  }
+  $("counts").innerHTML = r.isOrder ? [["pass", r.orderCounts.ok, "placed OK"], ["defect", r.orderCounts.bad, "problems"], ["unexpected", r.orderCounts.check, "check by eye"], ["empty", r.orderCounts.pending, "waiting"]]
+    .map(([k, v, t]) => `<span class="chip"><span class="dot" style="background:${COLOUR[k]}"></span>${v} ${t}</span>`).join("")
+    : r.verdict === "SKIPPED" ? "" : ["defect", "missed", "pass", "empty", "unexpected"]
+    .filter(k => c[k] || k === "defect" || k === "pass")
+    .map(k => `<span class="chip"><span class="dot" style="background:${COLOUR[k]}"></span>${c[k] || 0} ${STATUS_TEXT[k]}</span>`).join("");
+  $("reason").hidden = raw.verdict !== "SKIPPED";
+  $("reason").textContent = raw.reason ? "Skipped: " + raw.reason + ". Take the photo when the arm is clear." : "";
+  if (r.fill) $("fill-note").textContent = r.fill.mode === "auto" ? `detected ${r.fill.count}` : `auto would be ${r.fill.auto_count}`;
+  drawOverlay(r);
+  drawFlagged(r);
+  drawMap(r);
+  drawQuality(r);
+  const a = $("dl-annot"); a.hidden = false; a.href = "/api/annotated/" + raw.id;
+  drawQuality(raw);
+  if (selected) drawDetail(selected); else $("detail").innerHTML = "Click a position on the photo or the map.";
+  markHistory();
+}
+
+function drawOverlay(r) {
+  const svg = $("overlay");
+  if (!r.positions.length) { svg.innerHTML = ""; return; }
+  const h = 15;   // drawn smaller than the 64 px crop so neighbouring boxes don't overlap
+  svg.innerHTML = r.positions.map((p, i) => {
+    const [x, y] = r.crop_centres[i];
+    const col = COLOUR[p.status];
+    const showTag = p.status !== "pass" && p.status !== "empty";
+    const tip = p.text ? `${p.position}: ${p.text}` : `${p.position}: ${STATUS_TEXT[p.status]} (${LABEL_TEXT[p.label]}), defect score ${p.defect_score.toFixed(3)}`;
+    return `<rect class="box${selected === p.position ? " sel" : ""}" data-pos="${p.position}" x="${x - h}" y="${y - h}" width="${2 * h}" height="${2 * h}" rx="3" stroke="${col}">
+              <title>${esc(tip)}</title></rect>` +
+      (showTag ? `<text class="tag" x="${x - h}" y="${y - h - 3}" fill="${col}">${p.position}</text>` : "");
+  }).join("");
+}
+
+function drawFlagged(r) {
+  const bad = r.positions.filter(p => ["defect", "missed", "unexpected"].includes(p.status))
+    .sort((a, b) => (b.defect_score ?? 0) - (a.defect_score ?? 0));
+  $("flagged").innerHTML = bad.length ? bad.map(p => `<tr class="click" data-pos="${p.position}">
+      <td><b>${p.position}</b></td>
+      <td class="s-${p.status}">${p.text ? p.text : p.status === "defect" ? LABEL_TEXT[p.label] : STATUS_TEXT[p.status]}</td>
+      <td class="mono">${p.defect_score != null ? p.defect_score.toFixed(3) : p.change != null ? "change " + p.change : "—"}</td></tr>`).join("")
+    : `<tr><td colspan="3" class="none">${r.verdict === "SKIPPED" ? "—" : "Nothing flagged."}</td></tr>`;
+}
+
+function drawMap(r) {
+  const byName = {};
+  (r && r.positions || []).forEach(p => byName[p.position] = p);
+  const cells = [];
+  for (let row = 0; row < 5; row++) for (let col = 0; col < 6; col++) {
+    const idx = (5 - col) * 5 + row + 1;            // G01–G05 is the rightmost column, top to bottom
+    const name = "G" + String(idx).padStart(2, "0");
+    const p = byName[name];
+    cells.push(`<div class="cell ${p ? p.status : ""}${selected === name ? " sel" : ""}" data-pos="${name}"
+       title="${name}${p ? ": " + (p.text || STATUS_TEXT[p.status]) : ""}">${idx}</div>`);
+  }
+  $("map").innerHTML = cells.join("");
+}
+
+function drawDetail(name) {
+  selected = name;
+  if (!current || !current.positions.length) return;
+  const p = current.positions.find(q => q.position === name);
+  if (!p) return;
+  $("detail-title").textContent = "Position " + name;
+  if (p.order) {
+    const o = p.order;
+    const probs = o.model ? Object.entries(o.model) : [];
+    $("detail").className = "";
+    $("detail").innerHTML = `<div style="margin-bottom:8px">Order status: <b class="s-${p.status}">${p.text}</b></div>
+      <dl class="kv">
+        <dt>Change from empty tray</dt><dd class="mono">${o.change ?? "—"} <span class="hint">(empty ≤ 20 · open vial 20–55 · capped 55+)</span></dd>
+        <dt>Cap colour at centre</dt><dd class="mono">${o.cap_colour_at_centre ?? "—"}</dd>
+        <dt>Model cap-defect score</dt><dd class="mono">${o.cap_defect_score ?? "—"}</dd>
+        ${o.disturb_change ? `<dt>Change since placed</dt><dd class="mono">${o.disturb_change}</dd>` : ""}
+        <dt>Inspected in</dt><dd>${esc(o.frame || "—")}</dd></dl>` +
+      (probs.length ? `<div class="probs" style="margin-top:10px">${probs.map(([k, v]) => `<span>${LABEL_TEXT[k]}</span><div class="track"><div class="fill ${k === "pass" ? "p" : "d"}" style="width:${(v * 100).toFixed(1)}%"></div></div><span class="mono">${(v * 100).toFixed(1)}%</span>`).join("")}</div>` : "");
+    drawOverlay(current); drawMap(current);
+    return;
+  }
+  const rows = Object.entries(p.probs).map(([k, v]) => {
+    const cls = k === "pass" ? "p" : (["missing_cap", "crooked_cap", "damaged_vial"].includes(k) ? "d" : "");
+    return `<span>${LABEL_TEXT[k]}</span><div class="track"><div class="fill ${cls}" style="width:${(v * 100).toFixed(1)}%"></div></div><span class="mono">${(v * 100).toFixed(1)}%</span>`;
+  }).join("");
+  $("detail").className = "";
+  $("detail").innerHTML = `<div style="margin-bottom:8px">Status: <b class="s-${p.status}">${STATUS_TEXT[p.status]}</b>
+      · defect score <span class="mono">${p.defect_score.toFixed(3)}</span> vs threshold <span class="mono">${current.threshold.toFixed(3)}</span></div>
+    <div class="probs">${rows}</div>`;
+  drawOverlay(current);
+  drawMap(current);
+}
+
+const FINDING_TEXT = { complete_order: "Complete good order", missing_vial: "Missing vial (gap in the fill)",
+  bad_misclassified_as_good: "Defective vial in the good fixture" };
+function drawFindings(f) {
+  if (!f) { $("findings").innerHTML = '<dt class="none">—</dt><dd></dd>'; return; }
+  const v = x => x === true ? '<b class="s-defect">yes</b>' : x === false ? '<b class="s-pass">no</b>' : '<span class="s-empty">not established</span>';
+  const vGood = x => x === true ? '<b class="s-pass">yes</b>' : x === false ? '<b class="s-defect">no</b>' : '<span class="s-empty">not established</span>';
+  const list = a => a && a.length ? a.map(p => "G" + String(p).padStart(2, "0")).join(" ") : "—";
+  $("findings").innerHTML = Object.entries(f.findings).map(([k, x]) =>
+      `<dt>${FINDING_TEXT[k] || k}</dt><dd>${k === "complete_order" ? vGood(x) : v(x)}</dd>`).join("") +
+    `<dt>Occupied</dt><dd class="mono">${f.occupied} of 30 · fill boundary G${String(f.fill_boundary).padStart(2, "0")}</dd>
+     <dt>Gaps</dt><dd class="mono">${list(f.missing_positions)}</dd>
+     <dt>Visible defects</dt><dd class="mono">${list(f.visible_defect_positions)}</dd>
+     <dt>Not established</dt><dd class="mono">${list(f.unknown_positions)}</dd>`;
+}
+
+function drawQuality(r) {
+  const q = r.quality || {}, a = r.alignment;
+  $("quality").innerHTML = `
+    <dt>Brightness</dt><dd class="mono">${q.brightness ?? "—"} <span class="hint">(station normally 145–177)</span></dd>
+    <dt>Sharpness</dt><dd class="mono">${q.sharpness ?? "—"} <span class="hint">(normally 2700+)</span></dd>
+    <dt>Fixture offset</dt><dd class="mono">${a && a.caps_used ? `${a.dx}, ${a.dy} px from ${a.caps_used} caps${a.applied ? " — crops moved to follow it" : ""}` : "not measured (too few caps)"}</dd>
+    <dt>Threshold</dt><dd class="mono">${r.threshold.toFixed(3)}</dd>`;
+  $("qwarn").innerHTML = (q.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("");
+}
+
+/* ---------- history ---------- */
+let historyRows = [];
+async function refreshHistory() {
+  historyRows = await api("/api/history");
+  $("history").innerHTML = historyRows.length ? historyRows.slice(0, 200).map(h => `<tr class="click" data-id="${h.id}">
+      <td class="mono">${h.time.slice(11)}</td><td>${esc(h.name)}</td>
+      <td class="${h.verdict === "PASS" ? "s-pass" : h.verdict === "REJECT" ? "s-defect" : "s-missed"}"><b>${h.verdict}</b></td>
+      <td class="mono">${h.defects}</td><td class="mono">${h.missed}</td><td class="mono">${Math.round(h.seconds * 1000)}</td></tr>`).join("")
+    : '<tr><td colspan="6" class="none">No inspections yet.</td></tr>';
+  markHistory();
+}
+function markHistory() {
+  document.querySelectorAll("#history tr[data-id]").forEach(tr => tr.classList.toggle("cur", current && tr.dataset.id === current.id));
+}
+
+/* ---------- actions ---------- */
+async function uploadFiles(files) {
+  for (const f of files) {
+    const fd = new FormData();
+    fd.append("image", f);
+    try { show(await api("/api/inspect", { method: "POST", body: fd })); }
+    catch (e) { toast(f.name + ": " + e.message); }
+  }
+  refreshHistory();
+}
+
+let busy = false, playing = false, failures = 0;
+async function loadSample(i) {
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await api("/api/samples/" + i, { method: "POST" });
+    sampleIndex = r.sample_index;
+    $("sample-pos").textContent = `${r.sample_index + 1} of ${r.sample_total} · ${r.name}`;
+    if (r.skipped) { toast(`Skipped ${r.name}: ${r.reason}`); return; }
+    failures = 0;
+    show(r);
+    refreshHistory();
+  } catch (e) {
+    // one failed photo: skip it while playing; stop only if the server keeps failing
+    failures += 1;
+    toast(e.message);
+    if (playing && failures < 5) sampleIndex = i; else playing = false;
+  }
+  finally { busy = false; }
+}
+
+async function play() {
+  playing = !playing;
+  $("play").textContent = playing ? "❚❚ Pause" : "▶ Play";
+  while (playing && sampleIndex < cfg.samples - 1) {
+    await loadSample(sampleIndex + 1);
+    await new Promise(r => setTimeout(r, 60));
+  }
+  playing = false;
+  $("play").textContent = "▶ Play";
+}
+
+async function rescore() {
+  if (!raw) return;
+  const thr = $("thr").value, fill = $("fill").value;
+  try { show(await api(`/api/result/${raw.id}?threshold=${thr}&fill=${fill}`)); } catch (e) { toast(e.message); }
+}
+
+async function saveSettings() {
+  const t = +$("thr").value, f = $("fill").value;
+  $("thr-val").textContent = t.toFixed(3);
+  await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ threshold: t, fill_count: f === "auto" ? null : +f }) });
+  rescore();
+}
+
+async function pollLive() {
+  try {
+    const s = await api("/api/live");
+    $("livedot").classList.toggle("on", !!s.source && !s.error);
+    $("live-text").textContent = !s.source
+      ? "No live source. Start the server with --watch <folder> or --camera <index>."
+      : s.error ? "Problem: " + s.error : `Watching ${s.source} · ${s.frames} photos inspected`;
+    if (s.latest && s.latest.id !== lastLiveId) { lastLiveId = s.latest.id; show(s.latest); refreshHistory(); }
+  } catch (e) { $("live-text").textContent = "Lost connection to the server"; $("livedot").classList.remove("on"); }
+}
+
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  ["upload", "samples", "live"].forEach(k => $("ctl-" + k).hidden = k !== t);
+  clearInterval(liveTimer);
+  if (t === "live") { pollLive(); liveTimer = setInterval(pollLive, 1000); }
+  if (t === "samples") {
+    if (!cfg.samples) { $("sample-pos").textContent = "No sample folder. Start the server with --samples <folder>."; }
+    else if (sampleIndex < 0) loadSample(0);
+  }
+}
+
+/* ---------- events ---------- */
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+$("file").onchange = e => uploadFiles([...e.target.files]);
+$("prev").onclick = () => loadSample(sampleIndex - 1 < 0 ? cfg.samples - 1 : sampleIndex - 1);
+$("next").onclick = () => loadSample(sampleIndex + 1);
+$("play").onclick = play;
+$("goto-btn").onclick = () => { const n = parseInt($("goto").value, 10); if (n >= 1) loadSample(n - 1); };
+$("goto").onkeydown = e => { if (e.key === "Enter") $("goto-btn").click(); };
+$("thr").oninput = () => $("thr-val").textContent = (+$("thr").value).toFixed(3);
+$("thr").onchange = saveSettings;
+$("o-start").onclick = () => raw ? orderAction("/api/order/start", { id: raw.id }) : toast("Load a photo of the empty tray first");
+$("o-placed").onclick = () => orderAction("/api/order/placed");
+$("o-complete").onclick = () => orderAction("/api/order/complete");
+$("o-stop").onclick = () => orderAction("/api/order/stop");
+$("fill").onchange = saveSettings;
+$("thr-reset").onclick = () => { $("thr").value = cfg.model_threshold; saveSettings(); };
+document.addEventListener("click", e => {
+  const pos = e.target.closest("[data-pos]");
+  if (pos && current) { drawDetail(pos.dataset.pos); return; }
+  const row = e.target.closest("tr[data-id]");
+  if (row) api("/api/result/" + row.dataset.id).then(show).catch(err => toast(err.message));
+});
+document.addEventListener("keydown", e => {
+  if (tab !== "samples" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.key === "ArrowRight") $("next").click();
+  if (e.key === "ArrowLeft") $("prev").click();
+});
+const stage = $("stage");
+["dragenter", "dragover"].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); stage.classList.add("drag"); }));
+["dragleave", "drop"].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); stage.classList.remove("drag"); }));
+stage.addEventListener("drop", e => { const f = [...e.dataTransfer.files].filter(x => x.type.startsWith("image/")); if (f.length) { setTab("upload"); uploadFiles(f); } });
+
+init().catch(e => { $("model").textContent = "Server not reachable: " + e.message; });
+</script>
+</body>
+</html>

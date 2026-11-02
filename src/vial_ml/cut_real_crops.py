@@ -85,7 +85,10 @@ def suggest(mask, u, v, r=7):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--src", required=True, help="the cap_seal folder (with images/ and image_index.csv)")
+    ap.add_argument("--src", required=True,
+                    help="the cap_seal folder (images/ + image_index.csv), or any folder of 640x480 photos")
+    ap.add_argument("--session", default="new",
+                    help="name for photos without an image_index.csv (becomes the v<session>_ crop prefix)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--positions", default=os.path.join(HERE, "real_positions.json"))
     ap.add_argument("--crop-px", type=int, default=64)
@@ -98,14 +101,22 @@ def main():
 
     index_path = os.path.join(args.src, "image_index.csv")
     img_dir = os.path.join(args.src, "images")
-    if not os.path.isfile(index_path) or not os.path.isdir(img_dir):
-        sys.exit(f"Expected images/ and image_index.csv inside {args.src}")
+    if not os.path.isdir(img_dir):
+        img_dir = args.src
     names, pts = load_positions(args.positions)
     m = args.crop_px // 2 + 4
     rx0, ry0 = (pts.min(0) - m).astype(int)
     rx1, ry1 = (pts.max(0) + m).astype(int)
 
-    frames = sorted(csv.DictReader(open(index_path, newline="")), key=lambda r: r["timestamp"])
+    if os.path.isfile(index_path):
+        frames = sorted(csv.DictReader(open(index_path, newline="")), key=lambda r: r["timestamp"])
+    else:
+        # A plain folder of photos (e.g. newly collected at the station): file-name order, one session.
+        names_ = sorted(f for f in os.listdir(img_dir) if f.lower().endswith((".jpg", ".jpeg", ".png")))
+        if not names_:
+            sys.exit(f"No .jpg/.png photos found in {img_dir}")
+        frames = [{"filename": f, "timestamp": f"{i:06d} {f}", "video_id": args.session}
+                  for i, f in enumerate(names_)]
     crop_dir = os.path.join(args.out, "crops")
     review_dir = os.path.join(args.out, "review")
     os.makedirs(crop_dir, exist_ok=True)

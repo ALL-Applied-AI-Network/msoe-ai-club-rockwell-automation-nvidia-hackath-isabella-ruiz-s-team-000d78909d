@@ -3,3 +3,4 @@ torchvision>=0.17
 numpy
 Pillow
 opencv-python
+flask
