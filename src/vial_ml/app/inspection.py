@@ -229,8 +229,10 @@ class OrderOnlyPredictor:
     threshold = 1.01   # never flags in single-photo view
 
     def predict_probs(self, bgr, pts):
+        # Nothing is judged from a single photo: every position shows as "not checked" (grey)
+        # until an order is started on a photo of the empty tray.
         p = np.zeros((len(pts), 5))
-        p[:, 0] = 1.0
+        p[:, 4] = 1.0
         return p
 
 

@@ -340,8 +340,9 @@ function show(r, keepRaw) {
     : r.verdict === "SKIPPED" ? "" : ["defect", "missed", "pass", "empty", "unexpected"]
     .filter(k => c[k] || k === "defect" || k === "pass")
     .map(k => `<span class="chip"><span class="dot" style="background:${COLOUR[k]}"></span>${c[k] || 0} ${STATUS_TEXT[k]}</span>`).join("");
-  $("reason").hidden = raw.verdict !== "SKIPPED";
-  $("reason").textContent = raw.reason ? "Skipped: " + raw.reason + ". Take the photo when the arm is clear." : "";
+  $("reason").hidden = !(raw.verdict === "SKIPPED" || raw.verdict === "NO ORDER");
+  $("reason").textContent = raw.verdict === "SKIPPED" ? "Skipped: " + raw.reason + ". Take the photo when the arm is clear."
+    : raw.verdict === "NO ORDER" ? "Nothing checked yet. Go to a photo of the empty tray and press Start order." : "";
   if (r.fill) $("fill-note").textContent = r.fill.mode === "auto" ? `detected ${r.fill.count}` : `auto would be ${r.fill.auto_count}`;
   drawOverlay(r);
   drawFlagged(r);

@@ -113,6 +113,13 @@ def build_app(args):
             result["order"] = tracker.summary() if tracker.active else None
             result["findings"] = (findings.from_order(result["order"]) if result["order"]
                                   else findings.from_photo(result))
+            if getattr(predictor, "order_only", False) and result["verdict"] != "SKIPPED":
+                if result["order"]:
+                    result["verdict"] = result["order"]["verdict"]   # history shows the order's verdict
+                else:
+                    result["verdict"] = "NO ORDER"
+                    result["reason"] = "order-tracking mode: start an order on a photo of the empty tray"
+                    result["findings"] = None
         result["seconds"] = round(time.time() - t0, 3)
         return store.add(result, pipe.normalise(bgr), source, name)
 
