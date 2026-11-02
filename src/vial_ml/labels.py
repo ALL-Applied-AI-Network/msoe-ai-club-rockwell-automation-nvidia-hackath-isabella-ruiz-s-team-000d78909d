@@ -1,11 +1,9 @@
-"""Class names, folder scanning and crop lists. No PyTorch needed."""
 import csv
 import ntpath
 import os
 import re
 import sys
 
-# Fixed order: the model's output index i always means CLASSES[i].
 CLASSES = ["pass", "missing_cap", "crooked_cap", "damaged_vial", "no_vial"]
 DEFECT_CLASSES = ["missing_cap", "crooked_cap", "damaged_vial"]
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
@@ -15,7 +13,6 @@ NO_VIAL_IDX = CLASS_TO_IDX["no_vial"]
 
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
-# Matches e.g. "G_14", "S-3", "G07" anywhere in a file name.
 _POS_RE = re.compile(r"(?<![A-Za-z])(?P<fixture>[GS])[_-]?(?P<pos>\d{1,2})(?!\d)")
 
 

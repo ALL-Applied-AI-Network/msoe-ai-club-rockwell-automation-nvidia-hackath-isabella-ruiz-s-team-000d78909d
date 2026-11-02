@@ -1,28 +1,3 @@
-"""Cut good-fixture (G) position crops from the real overhead-camera frames.
-
-Input: the cap_seal folder from the lab (images/ + image_index.csv).
-Output (in --out):
-    crops/v5_cap_seal_20260923_201527_141712_G_14.png   one crop per position per kept frame
-    crops_index.csv     one row per crop: frame, video, time, position, a suggestion, and an empty
-                        `label` column for you to fill (or to fill from the lab's labels)
-    frames.csv          every frame and why it was kept or skipped
-    review/video_<n>.jpg  contact sheets of the fixture in every kept frame, to spot bad frames
-
-Frames are skipped when:
-    - the robot arm covers the fixture (a large yellow area over it),
-    - nothing changed at any position since the last kept frame of the same video
-      (the line sits still for long stretches; --keep-duplicates turns this off).
-
-Crop centres come from real_positions.json: the 30 G positions in the 640x480 image,
-computed from the digital twin's calibrated camera and checked against these frames.
-The scrap fixture (S) is left out because the twin's S positions don't line up.
-
-The video number starts each crop name, so split_real.py can keep each video on one side:
-    python split_real.py --src real_labeled --out splits --group-regex "^(v\\d+)_"
-
-Usage:
-    python cut_real_crops.py --src "C:\\...\\cap_seal" --out real_crops
-"""
 import argparse
 import csv
 import json
@@ -111,7 +86,6 @@ def main():
     if os.path.isfile(index_path):
         frames = sorted(csv.DictReader(open(index_path, newline="")), key=lambda r: r["timestamp"])
     else:
-        # A plain folder of photos (e.g. newly collected at the station): file-name order, one session.
         names_ = sorted(f for f in os.listdir(img_dir) if f.lower().endswith((".jpg", ".jpeg", ".png")))
         if not names_:
             sys.exit(f"No .jpg/.png photos found in {img_dir}")
@@ -123,8 +97,8 @@ def main():
     os.makedirs(review_dir, exist_ok=True)
 
     crop_rows, frame_rows = [], []
-    last_kept = {}            # video -> grey image of last kept frame
-    thumbs = {}               # video -> list of (thumbnail, caption)
+    last_kept = {}         
+    thumbs = {}             
     for i, fr in enumerate(frames):
         name, video = fr["filename"], fr["video_id"]
         img = cv2.imread(os.path.join(img_dir, name))

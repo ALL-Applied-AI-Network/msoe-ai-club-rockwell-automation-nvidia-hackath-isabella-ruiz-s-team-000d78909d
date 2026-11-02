@@ -1,24 +1,13 @@
 """Inspect whole 640x480 station images: 30 good-fixture positions in, a label and defect score per position out.
 
 Use it four ways:
-    python predict.py --model runs/mixed_v1/best.pt --image photo.png              # one photo
-    python predict.py --model runs/mixed_v1/best.pt --folder station_oct30          # every photo in a folder
-    python predict.py --model runs/mixed_v1/best.pt --watch incoming --show         # live: new photos as they appear
-    python predict.py --model runs/mixed_v1/best.pt --camera 0 --show               # live: straight from a camera
-
-For each image it writes (in --out, default live_out/):
-    <name>_result.jpg   the photo with a box per position: green = pass, red = defect flagged, grey = no_vial
-    <name>_result.json  every position's label, defect score and flag, plus timing
-and one line per image to results.csv. --show also opens a window (press q to quit).
+    python predict.py --model runs/mixed_v1/best.pt --image photo.png           
+    python predict.py --model runs/mixed_v1/best.pt --folder station_oct30         
+    python predict.py --model runs/mixed_v1/best.pt --watch incoming --show         
+    python predict.py --model runs/mixed_v1/best.pt --camera 0 --show           
 
 A position is FLAGGED when its defect score (P(missing)+P(crooked)+P(damaged)) is at or above the
 checkpoint's threshold, the same catch-all rule used in evaluation. --threshold overrides it.
-
-For Aiden and Nolan (backend), import and call:
-    from predict import Inspector
-    insp = Inspector("best.pt")
-    result = insp.inspect(bgr_image)     # numpy array from cv2.imread, 640x480
-    result["positions"]                  # list of 30 dicts: position, label, defect_score, flagged, probs
 """
 import argparse
 import csv

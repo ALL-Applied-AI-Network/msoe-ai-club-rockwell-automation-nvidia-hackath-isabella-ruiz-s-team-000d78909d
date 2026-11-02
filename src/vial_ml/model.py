@@ -20,10 +20,6 @@ def pick_device():
 
 
 def train_transform(size):
-    # Small shifts only: a big shift or crop can move the target aperture off
-    # centre so the label belongs to a neighbouring vial. Brightness/contrast
-    # jitter stands in for the lighting and glare differences between the twin
-    # and the real station.
     return transforms.Compose([
         transforms.Resize((size, size)),
         transforms.RandomAffine(degrees=0, translate=(0.04, 0.04)),

@@ -1,4 +1,4 @@
-"""Decision logic of the inspection app (no torch needed)."""
+"""Decision logic of the inspection app."""
 import os
 import sys
 

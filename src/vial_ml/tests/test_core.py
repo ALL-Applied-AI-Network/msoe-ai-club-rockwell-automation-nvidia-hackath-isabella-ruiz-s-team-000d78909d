@@ -1,4 +1,3 @@
-"""Checks for the parts that don't need PyTorch. Run: python tests/test_core.py"""
 import csv
 import os
 import subprocess

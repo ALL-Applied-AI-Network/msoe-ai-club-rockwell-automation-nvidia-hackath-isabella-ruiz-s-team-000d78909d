@@ -1,4 +1,4 @@
-"""Recall-first metrics for the vial classifier. No PyTorch needed.
+"""Recall-first metrics for the vial classifier.
 
 Decision rule: a crop is flagged as a defect when its defect score
     P(missing_cap) + P(crooked_cap) + P(damaged_vial)

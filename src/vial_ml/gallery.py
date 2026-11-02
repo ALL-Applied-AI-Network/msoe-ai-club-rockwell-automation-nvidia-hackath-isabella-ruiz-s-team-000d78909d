@@ -1,4 +1,4 @@
-"""Image galleries for the cases that matter. No PyTorch needed."""
+"""Image galleries for the cases that matter."""
 import html
 import os
 
@@ -6,7 +6,6 @@ from labels import CLASSES, CLASS_TO_IDX, NO_VIAL_IDX, PASS_IDX, parse_position
 
 
 def pick_cases(items, result, max_false_alarms=40, max_correct=12):
-    """Indices for each gallery section, most important first."""
     y = [lab for _, lab in items]
     pred, scores, flagged = result["_pred"], result["_scores"], result["_flagged"]
     defect = {CLASS_TO_IDX[c] for c in ("missing_cap", "crooked_cap", "damaged_vial")}
@@ -27,7 +26,6 @@ def pick_cases(items, result, max_false_alarms=40, max_correct=12):
 
 
 def write_html(out_dir, items, result, probs, sections, cams=None, title="Evaluation gallery"):
-    """cams: optional {item index: path to Grad-CAM image}."""
     cams = cams or {}
     thr = result["threshold"]
 

@@ -1,21 +1,3 @@
-"""Evaluate a trained checkpoint on a set of crops.
-
-Writes to --out:
-    report.md          missed defects, false alarms, per-class table, confusion matrix
-    metrics.json       the same numbers, machine-readable
-    predictions.csv    one row per crop: probabilities, defect score, flagged or not
-    gallery.html       missed defects, false alarms, open-vs-empty confusions, close calls,
-                       each with its Grad-CAM heatmap
-
-Threshold (--threshold):
-    checkpoint  the frozen threshold saved by train.py (default; use this for the test set)
-    auto        the catch-all threshold on THIS set (validation only)
-    <number>    a fixed value
-
-Usage:
-    python evaluate.py --checkpoint runs/baseline/best.pt --data splits/real_val.csv --out runs/baseline/eval_real_val
-    python evaluate.py --checkpoint runs/baseline/best.pt --data splits/real_test.csv --out runs/baseline/eval_TEST
-"""
 import argparse
 import csv
 import json
